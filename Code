@@ -1,0 +1,245 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ============================================================
+# EXPERIMENT 3: SAMPLING, ALIASING AND RECONSTRUCTION
+# ============================================================
+
+# Two-tone signal
+f1 = 1000       # First frequency = 1 kHz
+f2 = 1500       # Second frequency = 1.5 kHz
+
+A1 = 1.0        # Amplitude of first tone
+A2 = 0.5        # Amplitude of second tone
+
+# Maximum frequency
+fmax = max(f1, f2)
+
+# Nyquist rate
+nyquist_rate = 2 * fmax
+
+print("Maximum frequency =", fmax, "Hz")
+print("Nyquist rate =", nyquist_rate, "Hz")
+
+# ------------------------------------------------------------
+# High-resolution time axis
+# This is ONLY for displaying the waveform.
+# It is NOT the physical sampling rate.
+# ------------------------------------------------------------
+
+t = np.linspace(0, 0.008, 8000)
+
+# Original two-tone signal
+x = (A1 * np.sin(2 * np.pi * f1 * t) +
+     A2 * np.sin(2 * np.pi * f2 * t))
+
+
+# ============================================================
+# SINC RECONSTRUCTION FUNCTION
+# ============================================================
+
+def sinc_reconstruction(ts, xs, t):
+
+    # Actual sampling interval
+    Ts = ts[1] - ts[0]
+
+    # Sinc interpolation
+    reconstructed = np.sum(
+        xs[:, None] *
+        np.sinc((t[None, :] - ts[:, None]) / Ts),
+        axis=0
+    )
+
+    return reconstructed
+
+
+# ============================================================
+# ALIAS FREQUENCY FUNCTION
+# ============================================================
+
+def alias_frequency(f, fs):
+
+    # Frequency folded into 0 to fs/2
+    return abs(((f + fs / 2) % fs) - fs / 2)
+
+
+# ============================================================
+# THREE SAMPLING CASES
+# ============================================================
+
+cases = [
+    ("Above Nyquist", 4500),
+    ("At Nyquist", 3000),
+    ("Below Nyquist", 2400)
+]
+
+
+# ============================================================
+# SIMULATION
+# ============================================================
+
+for name, fs in cases:
+
+    print("\n---------------------------------------")
+    print(name)
+    print("Sampling frequency =", fs, "Hz")
+    print("Nyquist frequency =", fs / 2, "Hz")
+
+    # Actual physical sampling times
+    Ts = 1 / fs
+
+    ts = np.arange(0, 0.008 + Ts / 2, Ts)
+
+    # Sampled signal
+    xs = (A1 * np.sin(2 * np.pi * f1 * ts) +
+          A2 * np.sin(2 * np.pi * f2 * ts))
+
+    # Sinc reconstruction
+    xr = sinc_reconstruction(ts, xs, t)
+
+    # --------------------------------------------------------
+    # Calculate alias frequencies
+    # --------------------------------------------------------
+
+    alias_f1 = alias_frequency(f1, fs)
+    alias_f2 = alias_frequency(f2, fs)
+
+    print("Alias of f1 =", alias_f1, "Hz")
+    print("Alias of f2 =", alias_f2, "Hz")
+
+    # --------------------------------------------------------
+    # Reconstruction error
+    # --------------------------------------------------------
+
+    error = x - xr
+
+    rms_error = np.sqrt(np.mean(error ** 2))
+
+    print("RMS reconstruction error =", rms_error)
+
+    # ========================================================
+    # TIME DOMAIN PLOT
+    # ========================================================
+
+    plt.figure(figsize=(10, 5))
+
+    plt.plot(
+        t * 1000,
+        x,
+        label="Original Signal"
+    )
+
+    plt.plot(
+        t * 1000,
+        xr,
+        '--',
+        label="Sinc Reconstruction"
+    )
+
+    plt.stem(
+        ts * 1000,
+        xs,
+        linefmt='g-',
+        markerfmt='go',
+        basefmt=' ',
+        label="Samples"
+    )
+
+    plt.xlim(0, 4)
+
+    plt.xlabel("Time (ms)")
+    plt.ylabel("Amplitude")
+
+    plt.title(
+        name +
+        " Sampling - fs = " +
+        str(fs) +
+        " Hz"
+    )
+
+    plt.grid(True)
+    plt.legend()
+
+    plt.show()
+
+
+    # ========================================================
+    # FREQUENCY DOMAIN
+    # ========================================================
+
+    N = len(t)
+
+    dt = t[1] - t[0]
+
+    # Frequency axis
+    frequencies = np.fft.rfftfreq(N, dt)
+
+    # FFT of original signal
+    X = np.fft.rfft(x)
+
+    # FFT of reconstructed signal
+    XR = np.fft.rfft(xr)
+
+    # Magnitude spectrum
+    X_mag = 2 * np.abs(X) / N
+
+    XR_mag = 2 * np.abs(XR) / N
+
+
+    # ========================================================
+    # FREQUENCY PLOT
+    # ========================================================
+
+    plt.figure(figsize=(10, 5))
+
+    plt.plot(
+        frequencies,
+        X_mag,
+        label="Original Spectrum"
+    )
+
+    plt.plot(
+        frequencies,
+        XR_mag,
+        '--',
+        label="Reconstructed Spectrum"
+    )
+
+    plt.xlim(0, 2500)
+
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Magnitude")
+
+    plt.title(
+        name +
+        " Frequency Spectrum"
+    )
+
+    plt.grid(True)
+    plt.legend()
+
+    plt.show()
+
+
+# ============================================================
+# MANDATORY ALIASING VALIDATION
+# ============================================================
+
+fs = 2400
+
+print("\n======================================")
+print("MANDATORY ALIASING VALIDATION")
+print("======================================")
+
+print("Undersampled frequency f2 =", f2, "Hz")
+print("Sampling frequency fs =", fs, "Hz")
+
+alias = abs(f2 - fs)
+
+print()
+print("f_alias = |f2 - fs|")
+print("f_alias = |1500 - 2400|")
+print("f_alias =", alias, "Hz")
+
+print("\nTherefore, the expected aliased frequency is:")
+print("900 Hz")
